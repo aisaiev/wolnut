@@ -1,0 +1,66 @@
+# Dockerfile optimized for linux/arm/v6 architecture
+# Uses pip instead of uv due to compilation issues with some packages on ARM v6
+FROM --platform=linux/arm/v6 python:3.13-slim AS builder
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PIP_NO_CACHE_DIR=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# Install system dependencies needed for building Python packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libyaml-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create virtual environment
+RUN python -m venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Upgrade pip
+RUN pip install --upgrade pip
+
+# Install dependencies with specific versions to avoid compilation issues
+RUN pip install --prefer-binary \
+    click>=8.2.1 \
+    pyyaml>=6.0.2 \
+    wakeonlan>=3.1.0
+
+# Copy the application
+COPY wolnut ./wolnut
+COPY pyproject.toml README.md ./
+
+# Install the application
+RUN pip install -e . --no-deps
+
+# Runner stage
+FROM --platform=linux/arm/v6 python:3.13-slim AS runner
+
+# Avoid interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Install runtime system tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    iputils-ping \
+    nut-client \
+    net-tools \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy installed packages from builder
+COPY --from=builder /app/.venv /app/.venv
+
+# Copy the wolnut module
+COPY --from=builder /app/wolnut /app/wolnut
+
+# Set PYTHONPATH to include the app directory
+ENV PYTHONPATH="/app:$PYTHONPATH"
+
+# Run the script
+CMD ["wolnut"]
