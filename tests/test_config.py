@@ -87,7 +87,9 @@ def test_load_config_full(mocker, full_config_dict):
     assert cfg.wake_on.min_battery_percent == 50
     assert len(cfg.clients) == 2
     assert cfg.clients[0].mac == "DE:AD:BE:EF:00:01"
+    assert cfg.clients[0].force_wol == False  # Default value
     assert cfg.clients[1].mac == "11:22:33:44:55:66"  # Resolved MAC
+    assert cfg.clients[1].force_wol == False  # Default value
     mock_resolve_mac.assert_called_once_with("server.local")
 
 
@@ -186,6 +188,41 @@ def test_load_config_yaml_error(mocker):
     result = config.load_config("bad.yaml", None, False)
 
     assert result is None
+
+
+def test_load_config_with_force_wol(mocker):
+    """Tests loading a configuration with force_wol enabled for some clients."""
+    config_dict = {
+        "nut": {"ups": "ups@localhost"},
+        "clients": [
+            {
+                "name": "client-1", 
+                "host": "192.168.1.10", 
+                "mac": "DE:AD:BE:EF:00:01",
+                "force_wol": True
+            },
+            {
+                "name": "client-2", 
+                "host": "192.168.1.11", 
+                "mac": "DE:AD:BE:EF:00:02"
+                # force_wol not specified, should default to False
+            }
+        ],
+    }
+    
+    mocker.patch(
+        "builtins.open", mocker.mock_open(read_data=yaml.dump(config_dict))
+    )
+    mocker.patch("wolnut.config.validate_config")
+    mocker.patch("wolnut.config.resolve_mac_from_host")
+
+    cfg = config.load_config("dummy_path.yaml", None, False)
+
+    assert len(cfg.clients) == 2
+    assert cfg.clients[0].name == "client-1"
+    assert cfg.clients[0].force_wol == True
+    assert cfg.clients[1].name == "client-2"
+    assert cfg.clients[1].force_wol == False  # Default value
 
 
 def test_find_state_file(tmp_path, caplog):

@@ -36,6 +36,7 @@ class ClientConfig:
     name: str
     host: str
     mac: str  # "auto" supported
+    force_wol: bool = False  # Force WOL even if client wasn't online before shutdown
 
 
 @dataclass

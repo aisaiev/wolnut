@@ -19,6 +19,8 @@ clients:
   - name: "client 1"                  # Human-readable name
     host: 192.168.0.100               # IP address preferred for reliability
     mac: 38:f7:cd:c5:87:6b
+    force_wol: false                  # Optional: force WOL even if client wasn't online before shutdown (default: false)
   - name: "client 2"
     host: hostname.local             # You can use a hostname if it resolves to a reachable interface
     mac: auto                        # MAC will be resolved using ARP at runtime
+    force_wol: false                 # Optional: force WOL even if client wasn't online before shutdown (default: false)

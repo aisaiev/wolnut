@@ -33,7 +33,9 @@ coverage = [
 dev = [
     {include-group = "lint"},
     {include-group = "test"},
-    {include-group = "coverage"}
+    {include-group = "coverage"},
+    "pytest>=8.4.1",
+    "pytest-mock>=3.14.1",
 ]
 lint = [
     "black>=25.1.0",

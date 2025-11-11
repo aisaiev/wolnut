@@ -112,13 +112,19 @@ def main(config_file: str, status_file: str, verbose: bool = False) -> int:
                     if state_tracker.should_skip(client.name):
                         continue
 
-                    if not state_tracker.was_online_before_shutdown(client.name):
+                    if not state_tracker.was_online_before_shutdown(client.name) and not client.force_wol:
                         logger.info(
                             "Skipping WOL for %s: was not online before power loss",
                             client.name,
                         )
                         state_tracker.mark_skip(client.name)
                         continue
+                    
+                    if not state_tracker.was_online_before_shutdown(client.name) and client.force_wol:
+                        logger.info(
+                            "Forcing WOL for %s: force_wol is enabled (was not online before power loss)",
+                            client.name,
+                        )
 
                     if state_tracker.is_online(client.name):
                         if client.name not in recorded_up_clients:
