@@ -48,13 +48,13 @@ def main(config_file: str, status_file: str, verbose: bool = False) -> int:
 
     ups_status = get_ups_status(config.nut.ups)
     battery_percent = get_battery_percent(ups_status)
-    power_status = ups_status.get("ups.status", "OL")
+    power_status = ups_status.get("ups.status", "UNKNOWN")
     logger.info("UPS power status: %s, Battery: %s%%", power_status, battery_percent)
 
     while True:
         ups_status = get_ups_status(config.nut.ups)
         battery_percent = get_battery_percent(ups_status)
-        power_status = ups_status.get("ups.status", "OL")
+        power_status = ups_status.get("ups.status")
 
         logger.debug(
             "UPS power status: %s, Battery: %s%%", power_status, battery_percent
@@ -65,12 +65,26 @@ def main(config_file: str, status_file: str, verbose: bool = False) -> int:
             online = is_client_online(client.host)
             state_tracker.update(client.name, online)
 
+        # upsc failed (e.g. upsd restarting or stale data), so the power state is
+        # unknown: keep the current state until the UPS can be read again.
+        if power_status is None:
+            logger.debug("UPS status unavailable; keeping current power state.")
+
         # Power Loss Event
-        if "OB" in power_status and not on_battery:
-            state_tracker.mark_all_online_clients()
-            state_tracker.set_ups_on_battery(True, battery_percent)
-            on_battery = True
-            logger.warning("UPS switched to battery power.")
+        elif "OB" in power_status:
+            if not on_battery:
+                if restoration_event:
+                    # Power failed again before clients were woken. Cancel the
+                    # wake, and keep the client states from the first outage
+                    # because clients may already be off by now.
+                    restoration_event = False
+                    restoration_event_start = None
+                    wol_being_sent = False
+                else:
+                    state_tracker.mark_all_online_clients()
+                state_tracker.set_ups_on_battery(True, battery_percent)
+                on_battery = True
+                logger.warning("UPS switched to battery power.")
 
         # Power Restoration Event
         elif ("OL" in power_status and on_battery) or restoration_event:
@@ -127,9 +141,9 @@ def main(config_file: str, status_file: str, verbose: bool = False) -> int:
                         )
 
                     if state_tracker.is_online(client.name):
+                        recorded_down_clients.discard(client.name)
                         if client.name not in recorded_up_clients:
                             logger.info("%s is online.", client.name)
-                            recorded_down_clients.discard(client.name)
                             recorded_up_clients.update({client.name})
                         continue
 
